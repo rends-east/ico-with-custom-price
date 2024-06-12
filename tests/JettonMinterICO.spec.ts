@@ -21,6 +21,7 @@ describe('JettonMinterICO', () => {
     let state:number;
     let price:bigint;
     let cap:bigint;
+    let withdraw_minimum:bigint;
     let ico_start_date:number;
     let ico_end_date:number;
 
@@ -34,6 +35,7 @@ describe('JettonMinterICO', () => {
         state          = process.env.JETTON_STATE ? Number(process.env.JETTON_STATE).valueOf() : 0;
         price          = process.env.JETTON_PRICE ? BigInt(process.env.JETTON_PRICE).valueOf() : BigInt(1000000000);
         cap            = process.env.JETTON_CAP ? BigInt(process.env.JETTON_CAP).valueOf() : BigInt(1000000000);
+        withdraw_minimum = process.env.WITHDRAW_MINIMUM ? BigInt(process.env.WITHDRAW_MINIMUM).valueOf() : BigInt(1000000000);
         ico_start_date = process.env.JETTON_ICO_START_DATE ? Number(process.env.JETTON_ICO_START_DATE).valueOf() : 0;
         ico_end_date   = process.env.JETTON_ICO_END_DATE ? Number(process.env.JETTON_ICO_END_DATE).valueOf() : 0;
 
@@ -72,6 +74,7 @@ describe('JettonMinterICO', () => {
         expect(await jettonMinter.getICOState()).toEqual(Boolean(state));
         expect(await jettonMinter.getICOPrice()).toEqual(price);
         expect(await jettonMinter.getICOCap()).toEqual(cap);
+        expect(await jettonMinter.getICOWithdrawMinimum()).toEqual(withdraw_minimum);
         expect(await jettonMinter.getICOStartDate()).toEqual(ico_start_date);
         expect(await jettonMinter.getICOEndDate()).toEqual(ico_end_date);
     });
@@ -139,6 +142,13 @@ describe('JettonMinterICO', () => {
         const nonDeployerJettonWallet = await userWallet(notDeployer.address);
         expect(await nonDeployerJettonWallet.getJettonBalance()).toEqual((toNano('1')-min_tons_for_storage)*price/toNano('1'));
     });
+
+    it('anyone can buy during ICO', async () => {
+        await jettonMinter.sendBuy(notDeployer.getSender(), toNano('1'));
+        const nonDeployerJettonWallet = await userWallet(notDeployer.address);
+        expect(await nonDeployerJettonWallet.getJettonBalance()).toEqual((toNano('1')-min_tons_for_storage)*price/toNano('1'));
+    });
+
     // implementation detail
     it('anyone can buy during ICO from 0.1 TON', async () => {
         let buyOn = toNano('0.1');
@@ -202,5 +212,14 @@ describe('JettonMinterICO', () => {
             exitCode: 83, // error::paused
         });
         await jettonMinter.sendChangeState(deployer.getSender(), false);
+    });
+
+    it('autowithdraw works normal', async () => {
+        let buy = await jettonMinter.sendBuy(notDeployer.getSender(), toNano(10));
+        expect(buy.transactions).toHaveTransaction({
+            from: jettonMinter.address,
+            to: deployer.address,
+            aborted: false,
+        });
     });
 });

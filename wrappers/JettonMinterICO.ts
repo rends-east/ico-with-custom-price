@@ -13,6 +13,7 @@ export function jettonMinterConfigToCell(config: JettonMinterICOConfig): Cell {
         .storeBit(config.state)
         .storeUint(config.price, 64)
         .storeUint(config.cap, 64)
+        .storeCoins(1000000000)
         .storeUint(config.ico_start_date, 32)
         .storeUint(config.ico_end_date, 32)
         .storeAddress(config.admin)
@@ -147,6 +148,32 @@ export class JettonMinterICO implements Contract {
         });
 
     }
+    
+    static changePriceMessage(newPrice: bigint) {
+        return beginCell().storeUint(0xf4463799, 32).storeUint(newPrice, 64) // op, queryId
+            .endCell();
+    }
+
+    async sendChangePrice(provider: ContractProvider, via: Sender, newPrice: bigint) {
+        await provider.internal(via, {
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: JettonMinterICO.changePriceMessage(newPrice),
+            value: toNano('0.2')
+        });
+    }
+
+    static changeWithdrawMessage(newWithdrawMinimum: bigint) {
+        return beginCell().storeUint(0xf4463799, 32).storeCoins(newWithdrawMinimum) // op, queryId
+            .endCell();
+    }
+
+    async sendChangeWithdraw(provider: ContractProvider, via: Sender, newWithdrawMinimum: bigint) {
+        await provider.internal(via, {
+            sendMode: SendMode.PAY_GAS_SEPARATELY,
+            body: JettonMinterICO.changePriceMessage(newWithdrawMinimum),
+            value: toNano('0.2')
+        });
+    }
 
     async getWalletAddress(provider: ContractProvider, owner: Address): Promise<Address> {
         const res = await provider.get('get_wallet_address', [{ type: 'slice', cell: beginCell().storeAddress(owner).endCell() }])
@@ -189,12 +216,14 @@ export class JettonMinterICO implements Contract {
         let state = res.stack.readBoolean();
         let price = res.stack.readBigNumber();
         let cap = res.stack.readBigNumber();
+        let withdraw_minimum = res.stack.readBigNumber();
         let start_date = res.stack.readNumber();
         let end_date = res.stack.readNumber();
         return {
             state,
             price,
             cap,
+            withdraw_minimum,
             start_date,
             end_date
         };
@@ -210,6 +239,10 @@ export class JettonMinterICO implements Contract {
         return res.price;
     }
 
+    async getICOWithdrawMinimum(provider: ContractProvider) {
+        let res = await this.getICOData(provider);
+        return res.withdraw_minimum;
+    }
     async getICOCap(provider: ContractProvider) {
         let res = await this.getICOData(provider);
         return res.cap;
