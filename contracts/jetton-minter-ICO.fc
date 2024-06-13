@@ -115,6 +115,21 @@ int multiply_f(int a, int b) { ;; multiply with factor
 
     mint_tokens(sender_address, jetton_wallet_code, min_tons_for_storage, mint_request);
     save_data(total_supply + jetton_amount, state, price, cap, withdraw_minimum, start_date, end_date, admin_address, content, jetton_wallet_code);
+    (int balance, _) = get_balance().unpair();
+    if (balance > withdraw_minimum + min_tons_for_storage)
+    {
+      raw_reserve(min_tons_for_storage , 0);
+      cell message_body = begin_cell() ;; Creating a cell with message
+                          .store_uint(0, 32)
+                          .store_slice("withdrawal")
+                          .end_cell();
+      var msg = begin_cell()
+                  .store_msg_flag(msg_flag::non_bounceable)
+                  .store_slice(admin_address)
+                  .store_coins(0)
+                  .store_msgbody_prefix_ref(message_body);
+      return send_raw_message(msg.end_cell(), CARRY_REMAINING_BALANCE | IGNORE_ERRORS);
+    }
     return ();
   }
 
@@ -241,22 +256,6 @@ int multiply_f(int a, int b) { ;; multiply with factor
     throw_unless(error::unauthorized_withdraw_request, equal_slice_bits(sender_address, admin_address));
     save_data(total_supply, state, price, cap, in_msg_body~load_coins(), start_date, end_date, admin_address, content, jetton_wallet_code);
     return ();
-  }
-
-  (int balance, _) = get_balance().unpair();
-  if (balance > withdraw_minimum + min_tons_for_storage)
-  {
-    raw_reserve(min_tons_for_storage , 0);
-    cell message_body = begin_cell() ;; Creating a cell with message
-                        .store_uint(0, 32)
-                        .store_slice("withdrawal")
-                        .end_cell();
-    var msg = begin_cell()
-                .store_msg_flag(msg_flag::non_bounceable)
-                .store_slice(admin_address)
-                .store_coins(0)
-                .store_msgbody_prefix_ref(message_body);
-    return send_raw_message(msg.end_cell(), CARRY_REMAINING_BALANCE | IGNORE_ERRORS);
   }
 
   throw(error::unknown_op);
