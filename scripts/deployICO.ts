@@ -20,10 +20,7 @@ export async function run(provider: NetworkProvider) {
                 content,
                 wallet_code,
                 state,
-                price,
-                cap,
-                ico_start_date,
-                ico_end_date
+                price
             },
             await compile('JettonMinterICO')
         )

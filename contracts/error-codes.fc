@@ -23,3 +23,6 @@ const int error::cap_exceeded = 80;
 const int error::ico_closed = 81;
 const int error::ico_expired = 82;
 const int error::paused = 83;
+const int error::unauthorized_change_price_request = 84;
+const int error::unauthorized_change_minimum_withdraw_request = 85;
+const int error::unauthorized_change_withdraw_address_request = 86;

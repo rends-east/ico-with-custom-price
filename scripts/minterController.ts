@@ -4,8 +4,8 @@ import { JettonMinterICO, jettonContentToCell, } from '../wrappers/JettonMinterI
 import { promptBool, promptAmount, promptAddress, displayContentCell, waitForTransaction, promptUrl, } from '../wrappers/utils';
 let minterICOContract: OpenedContract<JettonMinterICO>;
 
-const adminActions = ['Buy', 'Mint', 'Change admin', 'Change content', 'Change state', 'Withdrawal'];
-const userActions  = ['Info', 'Quit'];
+const adminActions = ['Mint', 'Change admin', 'Change content', 'Change state', 'Change price',  'Withdrawal', 'Change withdraw address', 'Change withdraw minimum'];
+const userActions  = ['Stake', 'Info', 'Quit'];
 
 const failedTransMessage = (ui: UIProvider) => {
     ui.write("Failed to get indication of transaction completion from API!\nCheck result manually, or try again\n");
@@ -21,15 +21,16 @@ const infoAction = async (provider: NetworkProvider, ui: UIProvider) => {
     if (displayContent == 'Yes') {
         displayContentCell(jettonData.content, ui);
     }
-    const displayICO = await ui.choose('Display ICO info?', ['Yes', 'No'], (c) => c);
-    if (displayICO == 'Yes') {
+    const displayFullInfo = await ui.choose('Display full info?', ['Yes', 'No'], (c) => c);
+    if (displayFullInfo == 'Yes') {
         const ICOData = await minterICOContract.getICOData();
-        ui.write("ICO info:\n\n");
+        ui.write("Staking info:\n\n");
         ui.write(`State: ${ICOData.state}\n`);
-        ui.write(`Price: ${ICOData.price}\n`);
-        ui.write(`Cap: ${ICOData.cap}\n`);
-        ui.write(`Start date: ${fromNano(ICOData.start_date)}\n`);
-        ui.write(`End date: ${fromNano(ICOData.end_date)}\n`);
+        ui.write(`Price: ${fromNano(ICOData.price)}\n`);
+        const WithdrawData = await minterICOContract.getWithdrawData();
+        ui.write("_________________\n\nWithdraw info:\n\n");
+        ui.write(`Withdraw address: ${WithdrawData.WithdrawAddress}\n`);
+        ui.write(`Withdraw minimum: ${fromNano(WithdrawData.withdraw_minimum)} Ton\n`);
     }
 };
 
@@ -67,6 +68,46 @@ const changeAdminAction = async (provider: NetworkProvider, ui: UIProvider) => {
             ui.write("Admin changed successfully");
         } else {
             ui.write("Admin address hasn't changed!\nSomething went wrong!\n");
+        }
+    } else {
+        failedTransMessage(ui);
+    }
+};
+
+const changeWithdrawAddressAction = async (provider: NetworkProvider, ui: UIProvider) => {
+    let retry: boolean;
+    let newWithdrawAddress: Address;
+    let curWithdrawAddress = await minterICOContract.getWithdrawAddress();
+    do {
+        retry = false;
+        newWithdrawAddress = await promptAddress('Please specify new withdraw address:', ui);
+        if (newWithdrawAddress.equals(curWithdrawAddress)) {
+            retry = true;
+            ui.write("Address specified matched current admin address!\nPlease pick another one.\n");
+        }
+        else {
+            ui.write(`New admin address is going to be: ${newWithdrawAddress}\nKindly double check it!\n`);
+            retry = !(await promptBool('Is it ok?(yes/no)', ['yes', 'no'], ui));
+        }
+    } while (retry);
+
+    const lastSeqno = (await provider.api().getLastBlock()).last.seqno;
+    const curState = (await provider.api().getAccountLite(lastSeqno, minterICOContract.address)).account;
+
+    if (curState.last === null)
+        throw ("Last transaction can't be null on deployed contract");
+
+    await minterICOContract.sendChangeWithdrawAddress(provider.sender(), newWithdrawAddress);
+    const transDone = await waitForTransaction(provider,
+        minterICOContract.address,
+        curState.last.lt,
+        10);
+    if (transDone) {
+        const withdrawAddressAfter = await minterICOContract.getWithdrawAddress();
+        if (withdrawAddressAfter.equals(newWithdrawAddress)) {
+            ui.write("Withdraw address changed successfully");
+        } else {
+            ui.write("Withdraw address hasn't changed!\nSomething went wrong!\n");
         }
     } else {
         failedTransMessage(ui);
@@ -200,6 +241,92 @@ const mintAction = async (provider: NetworkProvider, ui: UIProvider) => {
     }
 }
 
+const changePriceAction = async (provider: NetworkProvider, ui: UIProvider) => {
+    const sender = provider.sender();
+    let retry: boolean;
+    let newPrice: string;
+    let forwardAmount: string;
+
+    do {
+        retry = false;
+        const fallbackAddr = sender.address ?? await minterICOContract.getAdminAddress();
+        newPrice = await promptAmount('Please provide new price in decimal form:', ui);
+        ui.write(`Changing price to ${newPrice}.\n`);
+        retry = !(await promptBool('Is it ok?(yes/no)', ['yes', 'no'], ui));
+    } while (retry);
+
+    ui.write(`Changing price to ${newPrice}\n`);
+    const supplyBefore = await minterICOContract.getTotalSupply();
+    const nanoPrice = toNano(newPrice);
+    
+    const lastSeqno = (await provider.api().getLastBlock()).last.seqno;
+    const curState = (await provider.api().getAccountLite(lastSeqno, minterICOContract.address)).account;
+
+    if (curState.last === null)
+        throw ("Last transaction can't be null on deployed contract");
+
+    const res = await minterICOContract.sendChangePrice(sender,
+        nanoPrice
+    )
+    const gotTrans = await waitForTransaction(provider,
+        minterICOContract.address,
+        curState.last.lt,
+        10);
+    if (gotTrans) {
+        const PriceAfter = await minterICOContract.getICOPrice();
+        if (PriceAfter == nanoPrice) {
+            ui.write("Changing successfull!\nCurrent price: " + fromNano(PriceAfter));
+        }
+        else {
+            ui.write("Changing failed!");
+        }
+    }
+    else {
+        failedTransMessage(ui);
+    }
+}
+
+const changeMinimumWithdrawAction = async (provider: NetworkProvider, ui: UIProvider) => {
+    const sender = provider.sender();
+    let retry: boolean;
+    let newWithdraw: string;
+    let forwardAmount: string;
+
+    do {
+        retry = false;
+        const fallbackAddr = sender.address ?? await minterICOContract.getAdminAddress();
+        newWithdraw = await promptAmount('Please provide minimum withdraw amount in decimal form:', ui);
+        ui.write(`Change minimum withdraw to ${newWithdraw}?\n`);
+        retry = !(await promptBool('Is it ok?(yes/no)', ['yes', 'no'], ui));
+    } while (retry);
+
+    ui.write(`Changing minimum withdraw to ${newWithdraw}?\n`);
+    const nanoMinimumWithdraw = toNano(newWithdraw);
+    
+    const lastSeqno = (await provider.api().getLastBlock()).last.seqno;
+    const curState = (await provider.api().getAccountLite(lastSeqno, minterICOContract.address)).account;
+
+    if (curState.last === null)
+        throw ("Last transaction can't be null on deployed contract");
+
+    const res = await minterICOContract.sendChangeWithdraw(sender, nanoMinimumWithdraw);
+    const gotTrans = await waitForTransaction(provider,
+        minterICOContract.address,
+        curState.last.lt,
+        10);
+    if (gotTrans) {
+        const WithdrawAfter = await minterICOContract.getWithdrawMinimum();
+        if (WithdrawAfter == nanoMinimumWithdraw) {
+            ui.write("Change successfull!\nCurrent minimum autowithdraw:" + fromNano(nanoMinimumWithdraw));
+        }
+        else {
+            ui.write("Change failed!");
+        }
+    }
+    else {
+        failedTransMessage(ui);
+    }
+}
 const buyAction = async (provider: NetworkProvider, ui: UIProvider) => {
     const sender = provider.sender();
     let retry: boolean;
@@ -313,7 +440,7 @@ export async function run(provider: NetworkProvider) {
     let actionList: string[];
     if (isAdmin) {
         actionList = [...adminActions, ...userActions];
-        ui.write("Current wallet is ICO admin!\n");
+        ui.write("Current wallet is staking admin!\n");
     }
     else {
         actionList = userActions;
@@ -326,7 +453,7 @@ export async function run(provider: NetworkProvider) {
             case 'Mint':
                 await mintAction(provider, ui);
                 break;
-            case 'Buy':
+            case 'Stake':
                 await buyAction(provider, ui);
                 break;
             case 'Withdrawal':
@@ -335,14 +462,23 @@ export async function run(provider: NetworkProvider) {
             case 'Change admin':
                 await changeAdminAction(provider, ui);
                 break;
+            case 'Change withdraw minimum':
+                await changeMinimumWithdrawAction(provider, ui);
+                break;
             case 'Change content':
                 await changeContentAction(provider, ui);
                 break;
             case 'Change state':
                 await changeStateAction(provider, ui);
                 break;
+            case 'Change price':
+                await changePriceAction(provider, ui);
+                break;
             case 'Info':
                 await infoAction(provider, ui);
+                break;
+            case 'Change withdraw address':
+                await changeWithdrawAddressAction(provider, ui);
                 break;
             case 'Quit':
                 done = true;
