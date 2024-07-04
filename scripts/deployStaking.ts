@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { address, toNano, } from '@ton/core';
-import { JettonMinterICO, jettonContentToCell } from '../wrappers/JettonMinterICO';
+import { JettonMinterStaking, jettonContentToCell } from '../wrappers/JettonMinterStaking';
 import { compile, NetworkProvider } from '@ton/blueprint';
 
 export async function run(provider: NetworkProvider) {
@@ -10,11 +10,9 @@ export async function run(provider: NetworkProvider) {
     const state = process.env.JETTON_STATE ? Number(process.env.JETTON_STATE).valueOf() : 0;
     const price = process.env.JETTON_PRICE ? BigInt(process.env.JETTON_PRICE).valueOf() : BigInt(1000000000);
     const cap = process.env.JETTON_CAP ? BigInt(process.env.JETTON_CAP).valueOf() : BigInt(1000000000);
-    const ico_start_date = process.env.JETTON_ICO_START_DATE ? Number(process.env.JETTON_ICO_START_DATE).valueOf() : 0;
-    const ico_end_date = process.env.JETTON_ICO_END_DATE ? Number(process.env.JETTON_ICO_END_DATE).valueOf() : 0;
 
     const minter = provider.open(
-        JettonMinterICO.createFromConfig(
+        JettonMinterStaking.createFromConfig(
             {
                 admin,
                 content,
@@ -22,7 +20,7 @@ export async function run(provider: NetworkProvider) {
                 state,
                 price
             },
-            await compile('JettonMinterICO')
+            await compile('JettonMinterStaking')
         )
     );
 

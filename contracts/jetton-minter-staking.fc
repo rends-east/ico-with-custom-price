@@ -258,7 +258,7 @@ int multiply_f(int a, int b) { ;; multiply with factor
   throw(error::unknown_op);
 }
 
-(int, int) get_ico_data() method_id {
+(int, int) get_staking_data() method_id {
   (int total_supply, int state, int price, int withdraw_minimum, slice admin_address, slice withdraw_address, cell content, cell jetton_wallet_code) = load_data();
   return (state, price);
 }

@@ -1,13 +1,13 @@
 import { Address, beginCell, Cell, Contract, contractAddress, ContractProvider, Sender, SendMode, toNano } from '@ton/core';
 
-export type JettonMinterICOContent = {
+export type JettonMinterStakingContent = {
     type: 0 | 1,
     uri: string
 };
 
-export type JettonMinterICOConfig = { admin: Address; content: Cell; wallet_code: Cell, state: number, price: bigint};
+export type JettonMinterStakingConfig = { admin: Address; content: Cell; wallet_code: Cell, state: number, price: bigint};
 
-export function jettonMinterConfigToCell(config: JettonMinterICOConfig): Cell {
+export function jettonMinterConfigToCell(config: JettonMinterStakingConfig): Cell {
     return beginCell()
         .storeCoins(0)
         .storeBit(config.state)
@@ -20,24 +20,24 @@ export function jettonMinterConfigToCell(config: JettonMinterICOConfig): Cell {
         .endCell();
 }
 
-export function jettonContentToCell(content: JettonMinterICOContent) {
+export function jettonContentToCell(content: JettonMinterStakingContent) {
     return beginCell()
         .storeUint(content.type, 8)
         .storeStringTail(content.uri) //Snake logic under the hood
         .endCell();
 }
 
-export class JettonMinterICO implements Contract {
+export class JettonMinterStaking implements Contract {
     constructor(readonly address: Address, readonly init?: { code: Cell; data: Cell }) { }
 
     static createFromAddress(address: Address) {
-        return new JettonMinterICO(address);
+        return new JettonMinterStaking(address);
     }
 
-    static createFromConfig(config: JettonMinterICOConfig, code: Cell, workchain = 0) {
+    static createFromConfig(config: JettonMinterStakingConfig, code: Cell, workchain = 0) {
         const data = jettonMinterConfigToCell(config);
         const init = { code, data };
-        return new JettonMinterICO(contractAddress(workchain, init), init);
+        return new JettonMinterStaking(contractAddress(workchain, init), init);
     }
 
     async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
@@ -57,7 +57,7 @@ export class JettonMinterICO implements Contract {
     async sendMint(provider: ContractProvider, via: Sender, to: Address, jetton_amount: bigint, forward_ton_amount: bigint, total_ton_amount: bigint,) {
         await provider.internal(via, {
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: JettonMinterICO.mintMessage(to, jetton_amount, forward_ton_amount, total_ton_amount,),
+            body: JettonMinterStaking.mintMessage(to, jetton_amount, forward_ton_amount, total_ton_amount,),
             value: total_ton_amount + toNano("0.1"),
         });
     }
@@ -71,7 +71,7 @@ export class JettonMinterICO implements Contract {
     async sendDiscovery(provider: ContractProvider, via: Sender, owner: Address, include_address: boolean, value: bigint = toNano('0.1')) {
         await provider.internal(via, {
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: JettonMinterICO.discoveryMessage(owner, include_address),
+            body: JettonMinterStaking.discoveryMessage(owner, include_address),
             value: value,
         });
     }
@@ -85,7 +85,7 @@ export class JettonMinterICO implements Contract {
     async sendChangeAdmin(provider: ContractProvider, via: Sender, newOwner: Address) {
         await provider.internal(via, {
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: JettonMinterICO.changeAdminMessage(newOwner),
+            body: JettonMinterStaking.changeAdminMessage(newOwner),
             value: toNano("0.1"),
         });
     }
@@ -99,7 +99,7 @@ export class JettonMinterICO implements Contract {
     async sendChangeWithdrawAddress(provider: ContractProvider, via: Sender, newWithdrawAddress: Address) {
         await provider.internal(via, {
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: JettonMinterICO.changeWithdrawAddressMessage(newWithdrawAddress),
+            body: JettonMinterStaking.changeWithdrawAddressMessage(newWithdrawAddress),
             value: toNano("0.1"),
         });
     }
@@ -113,7 +113,7 @@ export class JettonMinterICO implements Contract {
     async sendChangeContent(provider: ContractProvider, via: Sender, content: Cell) {
         await provider.internal(via, {
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: JettonMinterICO.changeContentMessage(content),
+            body: JettonMinterStaking.changeContentMessage(content),
             value: toNano("0.1"),
         });
     }
@@ -127,7 +127,7 @@ export class JettonMinterICO implements Contract {
     async sendChangeState(provider: ContractProvider, via: Sender, state: boolean) {
         await provider.internal(via, {
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: JettonMinterICO.stateMessage(state),
+            body: JettonMinterStaking.stateMessage(state),
             value: toNano('0.2')
         });
 
@@ -141,7 +141,7 @@ export class JettonMinterICO implements Contract {
     async sendWithdraw(provider: ContractProvider, via: Sender) {
         await provider.internal(via, {
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: JettonMinterICO.withdrawMessage(),
+            body: JettonMinterStaking.withdrawMessage(),
             value: toNano('0.1')
         });
 
@@ -155,7 +155,7 @@ export class JettonMinterICO implements Contract {
     async sendBuy(provider: ContractProvider, via: Sender, value: bigint) {
         await provider.internal(via, {
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: JettonMinterICO.buyMessage(),
+            body: JettonMinterStaking.buyMessage(),
             value
         });
 
@@ -169,7 +169,7 @@ export class JettonMinterICO implements Contract {
     async sendChangePrice(provider: ContractProvider, via: Sender, newPrice: bigint) {
         await provider.internal(via, {
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: JettonMinterICO.changePriceMessage(newPrice),
+            body: JettonMinterStaking.changePriceMessage(newPrice),
             value: toNano('0.2')
         });
     }
@@ -182,7 +182,7 @@ export class JettonMinterICO implements Contract {
     async sendChangeWithdraw(provider: ContractProvider, via: Sender, newWithdrawMinimum: bigint) {
         await provider.internal(via, {
             sendMode: SendMode.PAY_GAS_SEPARATELY,
-            body: JettonMinterICO.changeWithdrawMessage(newWithdrawMinimum),
+            body: JettonMinterStaking.changeWithdrawMessage(newWithdrawMinimum),
             value: toNano('0.2')
         });
     }
@@ -223,8 +223,8 @@ export class JettonMinterICO implements Contract {
         return res.content;
     }
 
-    async getICOData(provider: ContractProvider) {
-        let res = await provider.get('get_ico_data', []);
+    async getStakingData(provider: ContractProvider) {
+        let res = await provider.get('get_staking_data', []);
         let state = res.stack.readBoolean();
         let price = res.stack.readBigNumber();
         return {
@@ -253,13 +253,13 @@ export class JettonMinterICO implements Contract {
         return res.withdraw_minimum;
     }
 
-    async getICOState(provider: ContractProvider) {
-        let res = await this.getICOData(provider);
+    async getStakingState(provider: ContractProvider) {
+        let res = await this.getStakingData(provider);
         return res.state;
     }
 
-    async getICOPrice(provider: ContractProvider) {
-        let res = await this.getICOData(provider);
+    async getStakingPrice(provider: ContractProvider) {
+        let res = await this.getStakingData(provider);
         return res.price;
     }
 
